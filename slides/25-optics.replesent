@@ -1,0 +1,286 @@
+<< /Optics
+
+\*Optics\s provide \*first class\s, \*highly-composable\s, \*purely-functional\s machinery
+for focusing in on a part of a substructure A inside a superstructure S and performing local
+transformations to yield a new substructure B inside a new superstructure T.
+
+Optics enables an 'easy' way of \*managing immutable data structures\s.
+
+We could get code like:
+
+```
+def upperCaseWithLens(person: Person): Person = {
+  addressLens
+    .composeLens(streetLens)
+    .composeLens(nameLens)
+    .modify(_.toUpperCase)(person)
+}
+```
+
+Conceptually an optic is could be seen as a general function (A => A) => (S => S) and
+we derive specific types of optics by giving different constraints.
+
+You can have optics in \*Java\s too! https://github.com/functionaljava/functionaljava
+
+
+
+<< https://gist.github.com/jdegoes/97459c0045f373f4eaf126998d8f65dc
+<< https://julien-truffaut.github.io/Monocle/optics.html
+<< https://bitbucket.org/snippets/puffnfresh/5jRe9/functional-optics-presentation
+---
+<< /Optics
+
+We are gonna see:
+
+  \_Optic\s           \_Constraints\s        \_Usability\s
+
+ - Iso         ^    Stronger          Less
+ - Lens        |
+ - Prism       |
+ - Optional    |
+ - Traversal   v    Weaker             More
+
+There are more: Setter, Getter, Fold,...
+---
+<< /Optics/Iso
+
+\*Iso provide an isomorphism between A and S.
+An isomorphism is a bijective map between A and S, so you can pass A => S and S => A without
+losing information.
+
+```
+trait Iso[S, A] {
+  def get(s: S): A
+  def reverseGet(a: A): S
+}
+```
+
+My point is that isomorphisms are a kind of 'equivalence'. If two types are isomorphic,
+you will be able to 'represent' the same information with them. For example: 
+
+```
+sealed case class Person(name: String, age: Int)
+```
+
+has an isomorphism with
+
+```
+type Person_ = (String, Int)
+```
+
+---
+<< /Optics/Polymorphic
+
+One step more...
+
+Any optic could be abstracted into (A => B) => (S => T).
+For example, in the Iso case:
+
+```
+trait PIso[S, T, A, B] {
+  def get(s: S): A
+  def reverseGet(b: B): T
+}
+
+type Iso[S, A] = PIso[S, S, A, A]
+```
+
+In this situation optics are named \*Polymorphic Optics\s.
+
+---
+<< /Optics/Lens
+
+\*Lenses provide a way to focus on a 'single term' A inside a product S.
+The focused term must always exist.
+A context is required in order to yield again the product.
+
+In a polymorphic form the structure will be:
+
+```
+trait PLens[S, T, A, B] {
+  def get(s: S): A
+  def set(b: B)(s: S): T
+}
+
+type Lens[S, A] = PLens[S, S, A, A]
+```
+---
+<< /Optics/Lens
+
+```
+import monocle.Lens
+
+sealed case class Person(name: String, age: Int)
+
+val pName = Lens[Person, String](_.name)(n => p => p.copy(name= n))
+
+val p1 = Person("Bruce", 40)
+
+val getP1 = pName.get(p1)
+val setP1 = pName.set("Lee")(p1)
+val modP1 = pName.modifyF[Id](_.toUpperCase)(p1)
+```
+
+
+
+
+
+<< http://julien-truffaut.github.io/Monocle/optics/lens.html
+---
+<< /Optics/Prism
+
+\*Prisms provide a way to focus on a single term inside a coproduct.
+The focus existence is optional.
+Capable to yield the coproduct without context, only requires the focus.
+
+In a polymorphic definition:
+
+```
+trait PPrism[S, T, A, B] {
+  def getOption(s: S): Option[A]
+ 
+  def reverseGet(b: B): T
+}
+
+type Prism[S, A] = PPrism[S, S, A, A]
+```
+
+
+
+
+---
+<< /Optics/Prism
+
+Modeling Json objects:
+
+```
+sealed trait Json
+final case object JNull extends Json
+final case class JStr(v: String) extends Json
+final case class JNum(v: Double) extends Json
+final case class JObj(v: Map[String, Json]) extends Json
+
+import monocle.Prism
+
+val jStr = Prism.partial[Json, String] { case JStr(v) => v }(JStr)
+
+val j1 = JStr("event1")
+val j2 = JNum(1.0)
+
+val getJ1 = jStr.getOption(j1)
+val getJ2 = jStr.getOption(j2)
+
+val reverseJson = jStr.reverseGet("event2")
+```
+
+---
+<< /Optics/Optional
+
+\*Optionals provide either a way to get an A in S and a way to set a B in S to get a T.
+Like a Lens, need context in order to yield 
+
+```
+trait POptional[S, T, A, B] {
+  def getOption(s: S): Option[A]
+  def set(b: B)(s: S): T
+}
+
+type Optional[S, A] = POptional[S, S, A, A]
+```
+
+Fit well:
+
+  a- S (T) are schemaless structures
+
+  b- non-total function => total function
+
+
+---
+<< /Optics/Optional
+
+<<      \*a) For example with Jsons
+
+```
+import monocle.Optional
+
+def typeFieldOptional(field: String) = Optional[Json, Json] {
+    case JObj(fields) => fields.get(field)
+    case _ => None
+  } {  a => j => j match {
+         case JObj(fields) => JObj(fields + (field -> a)) // todo: add the new
+         case _ => j
+    }
+  }
+
+val j1 = JObj(Map("id" -> JNum(123), "key1" -> JStr("value1")))
+
+val hasField = typeFieldOptional("key1").getOption(j1)
+val notHasField = typeFieldOptional("fail").getOption(j1)
+val succSet = typeFieldOptional("key1").modifyF[Id](Function.const(JNum(321)))(j1)
+val failSet = typeFieldOptional("fail").modifyF[Id](Function.const(JNum(321)))(j1)
+```
+
+---
+<< /Optics/Optional
+
+<<      \*b) List head function
+
+```
+import monocle.Optional
+
+def totalHead[A] = Optional[List[A], A] {
+    case Nil => None
+    case x :: xs => Some(x)
+  }{ a => {
+    case Nil => Nil
+    case x :: xs => a :: xs
+    }
+  }
+
+val hasValue = totalHead.getOption(List(1,2,3))
+val noValue = totalHead.getOption(List())
+```
+
+
+
+---
+<< /Optics/Traversal
+
+\*Traversals provide a way to focus on zero or more elements.
+Potentially many targets across a combination of products and/or sums. Can modify
+and read the many targets.
+
+In a polymorphic way:
+
+```
+trait PTraversal[S, T, A, B] {
+  def modifyF[F[_]: Applicative](f: A => F[B])(s: S): F[T]
+}
+
+type Traversal[S, A] = PTraversal[S, S, A, A]
+```
+
+Applicative is mandatory.
+
+---
+<< /Optics/Traversal
+
+```
+import monocle.Traversal
+import scalaz.std.list._
+
+val p1 = Person("Elsa", 20)
+val p2 = Person("Ana", 17)
+val p3 = Person("Kristoff", 19)
+
+val chars = List(p1, p2, p3)
+
+val pTraList = Traversal.fromTraverse[List, Person]
+val nameTraList = pTraList composeLens pName
+
+val names = nameTraList.getAll(chars)
+val upper = nameTraList.modifyF[Id](_.toUpperCase)(chars)
+```
+
+
+---

@@ -1,0 +1,580 @@
+<< /Category Theory
+
+\*What's CT?
+    Category theory has come to occupy a central position in contemporary mathematics and
+theoretical computer science, and is also applied to mathematical physics. Roughly,
+it is a general mathematical theory of structures and of systems of structures.
+
+\*What's a Category?
+    A category is a two-sorted structure that encodes the algebra of
+composition. It has
+
+- \_objects\s: A, B, C...
+- \_arrows\s: f: A => B, each with a specified source and target. So that:
+
+     * for any pair of composable arrows:
+
+        f: A=>B
+        g: B=>C
+        g·f: A=>C   <---  Always exists a composite arrow
+
+     * and each object has an identity arrow:  id: A=>A
+     
+  for which the composition operation is associative and unital.
+
+\*Another idea
+  Category theory is a toolset for describing the general abstract structures in mathematics.
+As opposed to set theory, category theory focuses not on elements (called objects)
+but on the relations between these objects.
+
+<< https://plato.stanford.edu/entries/category-theory/
+<< https://www.youtube.com/watch?v=6t6bsWVOIzs
+<< https://ncatlab.org/nlab/show/category+theory
+---
+<< /Category Theory/Example
+
+And... in a more coding way :-)
+```
+trait Category[=>:[_, _]] {
+  def id[A](a: A): A =>:A
+
+  def compose[A, B, C](f: A =>: B, g: B =>: C): A =>: C
+}
+```
+
+And one inhabitant would be:
+```
+type ==>[-A, +B] = Function1[A, B]
+
+implicit val funcCat = new Category[==>] {
+
+  def id[A](a: A) = (a => a)
+
+  def compose[A, B, C](f: A=>B, g: B=>C) = g compose f
+}
+val sum2: Int => Int = _ + 2
+val toStr: Int => String = _.toString
+
+def program[F[_, _]: Category, A, B, C](f: F[A, B], g: F[B, C]) = {
+  val cat = implicitly[Category[F]]
+  cat.compose(f, g)
+}
+val _p = program(sum2, toStr)
+
+_p(8)  // "10"
+```
+
+
+<< https://github.com/scalaz/scalaz/blob/series/7.3.x/core/src/main/scala/scalaz/Category.scala
+---
+<< /Category Theory/Example
+
+Examples:
+
+- In the \*category Set\s the
+
+     + objects are (finite) sets X, Y,...
+     + arrows are functions between sets f: X=>Y
+
+
+- In the \*syntactic category for some programming language\s (for example, \*Hask\s for Haskell) the
+
+     + objects are types String, Int, {trait A}
+     + arrows are programs between types  program: {trait A} => Int
+
+--
+\*What a monster we have!!!
+\*Let's use it!
+
+
+
+<< https://www.youtube.com/watch?v=6t6bsWVOIzs
+---
+<< /Category Theory/Example
+
+
+One example of a category (in our coding world):
+
+trait A
+trait B extends A
+trait C extends B
+
+    A
+    ^
+    |     <<-- This category complains with arrow composition 
+    B           and exists identity arrow for each object
+    ^
+    |
+    C
+--
+
+If we create a parametrized type over our hierarchy. For example:
+
+```
+trait Contex[T]
+```
+
+The result of applying Context[_] to our previous types will still be a cat?
+--
+
+Depends on the variance... Let's see it:
+
+---
+<< /Category Theory/Example
+
+If we apply \*covariance\s
+
+
+  A                               Context[A]
+  ^                                   ^
+  |     ---( Context[+T] )--->        |         \*Category conditions
+  B                               Context[B]    \*are still accomplished.
+  ^                                   ^
+  |                                   |
+  C                               Context[C]
+
+
+And if it is applied \*contravariance\s??
+--
+
+  A                               Context[A]
+  ^                                   |
+  |     ---( Context[-T] )--->        v         \*Category conditions
+  B                               Context[B]    \*are accomplished but inverting
+  ^                                   |         \*arrow direction.
+  |                                   v                 
+  C                               Context[C]
+
+
+It's the \*DUAL category\s!!!
+--
+
+And finally, what about in case of \*Invariant variance\s?
+
+---
+<< /Category Theory/Functor
+
+\*Functor
+
+Is a data structure that supports a map operation and complain certain laws:
+
+```
+trait Functor[F[_]] {
+  def map[A,B](f: A => B)(fa: F[A]): F[B]
+}
+```
+\_Laws:
+
+- identity:  id map x = x
+- associativity: f1 map (f1 map x) = (f2 compose f1) map x  
+
+--
+Out of formal CT definitions, my tip is that a functor is a \*function lifter\s.
+Transforms a function a => b into F[A] => F[B]
+
+  def map[A,B](f: A => B): F[A] => F[B]
+
+
+---
+<< /Category Theory/Functor
+
+For example:
+
+```
+sealed trait Maybe[A]
+object Maybe {
+  final case class Just[A](a: A) extends Maybe[A]
+  final case class Empty[A]() extends Maybe[A]   // a class in order to avoid covariance.
+
+  final def empty[A]: Maybe[A] = Empty()
+  final def just[A](a: A): Maybe[A] = Just(a)
+}
+import Maybe._
+
+implicit val maybeIsFunctor = new Functor[Maybe] {
+  def map[A,B](f: A => B)(fa: Maybe[A]): Maybe[B] = fa match {
+      case Just(v) => Just[B](f(v))
+      case Empty() => Empty[B]()
+    }
+}
+// Generic wrapper for a cleaning way of using Functor instances
+implicit class FunctorWrapper[F[_]: Functor, A](x: F[A]) {
+  def funct = implicitly[Functor[F]]
+
+  def map[B](f: A => B): F[B] =
+    funct.map(f)(x)
+}
+println( just(1) map (_+1) )
+println( empty map ((_: Int) + 1) )
+```
+
+<< http://eed3si9n.com/learning-scalaz/
+---
+<< /Category Theory/Functor
+
+Let's define type Predicate.
+
+```
+type Predicate[A] = A => Boolean
+```
+
+Could you give me a Functor[Predicate] ?
+--
+
+No, it's not possible, because our Functor in fact is a Covariant Functor.
+I mean, it can be applied to a covariant type parameters, and Predicate
+parameter is in a contravariant position, so... we can define:
+
+```
+trait ContraFunctor[F[_]] {
+  def contramap[A,B](f: B => A)(fa: F[A]): F[B]
+}
+```
+
+and now, could you give me ContraFunctor[Predicate]?
+
+
+---
+<< /Category Theory/ContraFunctor
+```
+implicit val predicateIsContraFunctor = new ContraFunctor[Predicate] {
+  def contramap[A,B](f: B => A)(fa: Predicate[A]): Predicate[B] =
+      fa compose f
+}
+// Generic wrapper for a cleaning way of using Functor instances
+implicit class ContraFunctorWrapper[F[_]: ContraFunctor, A](x: F[A]) {
+  def contrafu = implicitly[ContraFunctor[F]]
+
+  def contramap[B](f: B => A): F[B] =
+    contrafu.contramap(f)(x)
+}
+val even: Predicate[Int] = i => if (i % 2 == 0) true else false
+println( s"""8 is even: ${even(8)}""" )
+println( s"""3 is even: ${even(3)}""" )
+
+val unsafeInt = (_:String).toInt
+val strEven = even contramap unsafeInt
+println( s""""8" as Int is even: ${strEven("8")}""" )
+println( s""""3" as Int is even: ${strEven("3")}""" )
+```
+--
+
+And one more thing:  \*Functors compose!\s woohoo :-)
+```
+{
+  import scalaz._, Scalaz._
+
+  val loFu = Functor[List] compose Functor[Option]
+  println( s"""${loFu.map(List(Some(1), Some(2)))(_ + 1)}""" )
+}
+```
+
+<< https://github.com/typelevel/cats/blob/master/core/src/main/scala/cats/functor/Contravariant.scala
+---
+<< /Category Theory/Apply+Applicative
+
+\*Applicative Functors\s (alias 'Applicative')
+
+Is a data structure that supports the following operations and complain certain laws:
+
+```
+trait Apply[F[_]] extends Functor[F] {
+  def ap[A,B](f: F[A => B])(fa: F[A]): F[B]  // called <*> as infix operator
+}
+
+trait Applicative[F[_]] extends Apply[F] {
+  def point[A](a: A): F[A]  // As named in Scalaz library
+
+  def pure[A](a: A): F[A] = point(a)  // Alias, as named in Cats library
+}
+```
+
+\_Laws:
+
+- identity: pure id <*> v = v
+- homomorphism: pure f <*> pure x = pure (f x)
+- interchange: u <*> pure y = pure ($ y) <*> u
+
+\_Practical use cases:
+
+a- Applicative Parsers --> when grammar is 'fixed' (NOT depends on input).
+  [When grammar is dynamic, use Monadic Parsers]
+b- Parallel execution of unrelated computations (for example: data validation).
+c- Traverse / sequence combinator.
+
+Show me code, please!
+---
+<< /Category Theory/Apply+Applicative
+
+a) I don't have experience on that, sorry :-(
+b) We are gonna use applicative Future to parallel computations:
+
+```
+import scala.concurrent.{Future, ExecutionContext}
+import scalaz.Applicative, scalaz.syntax.applicative._
+val global = "hide global execution context if exist"
+
+implicit def applicativeFuture(implicit ec: ExecutionContext) = new Applicative[Future] {
+  def point[A](a: => A): Future[A] = Future.successful(a)
+  def ap[A, B](fa: => Future[A])(f: => Future[(A) => B]): Future[B] = f.flatMap(fa.map(_))
+}
+def task(sleep: Long, value: Int)(implicit ec: ExecutionContext): Future[Int] = {
+  Future {
+    Thread.sleep(sleep)
+    println(s""" task ${value} finishes!""")
+    value
+  }
+}
+{
+  import scala.concurrent.ExecutionContext.Implicits.{global => ec}
+
+  val expr = (task(100, 1) |@| task(200, 2) |@| task(700, 3)) {
+    case r: (Int, Int, Int) => r.productIterator.toList
+  }
+  Thread.sleep(2000)
+
+  expr onComplete println _
+}
+```
+---
+<< /Category Theory/Apply+Applicative
+
+c) See this:
+```
+def sequence[F[_]: Applicative, A](list: List[F[A]]): F[List[A]] =
+  list match {
+        case Nil     => (Nil: List[A]).point[F]
+        case x :: xs => Applicative[F].apply2(x, sequence(xs)) {_ :: _}
+  }
+{
+  import scalaz._, Scalaz._
+
+  val expr = sequence(List(1.some, 2.some))
+  println( s"""${expr}""" )
+}
+```
+--
+Imagine that with futures!!:
+```
+{
+  import scala.concurrent.ExecutionContext.Implicits.global
+
+  val expr = sequence(List(Future.successful(1), Future.successful(3)))
+  expr onComplete println _
+}
+```
+--
+In a more abstracted form, sequence is implemented as an special case of \*traverse\s:
+
+```
+def sequence[A, G[_]: Traverse, F[_]: Applicative](as: G[F[A]]): F[G[A]] =
+  traverse(as)(a => a)
+
+def traverse[A, G[_], B, F[_]](value: G[A])(f: A => F[B])
+  (implicit G: Traverse[G], F: Applicative[F]): F[G[B]] = G.traverse(value)(f)(F)
+```
+
+<< http://eed3si9n.com/learning-scalaz
+<< https://github.com/scalaz/scalaz/blob/series/7.3.x/core/src/main/scala/scalaz/Applicative.scala
+---
+<< /Category Theory/Apply+Applicative
+
+
+Let's think about it...
+
+scala> Apply[Option].ap(Some(2))(Some(1 + (_:Int)))
+res136: Option[Int] = Some(3)
+
+scala> Apply[Option].apply2(Some(2), Some(2))(_+_)
+res137: Option[Int] = Some(4)
+
+\*Applicative functors compose! yeehaa
+
+```
+{
+  import scalaz._, Scalaz._
+  val loAp = Applicative[List] compose Applicative[Option]
+
+  println( s"""an 'ap' example -> ${loAp.ap(List(Some(1)))(List(Some(1 + (_:Int))))}""" )
+  println( s"""an 'apply2' example -> ${loAp.apply2(List(Some(1)), List(Some(2)))(_ + _)}""" )
+}
+```
+
+
+
+---
+<< /Category Theory/Monad
+
+\*Monad 
+
+Is a data structure that supports the following operations and complain certain laws:
+
+```
+trait Monad[F[_]] extends Applicative[F] {
+  def flatMap[A, B](fa: F[A])(f: A => F[B]): F[B]
+}
+```
+
+\_Laws:
+
+- left identity: (Monad[F].pure(x) flatMap {f}) === f(x)
+- right identity: (m flatMap {Monad[F].pure(_)}) === m
+- associativity: (m flatMap f) flatMap g === m flatMap { x => f(x) flatMap {g} }
+--
+
+My tip:
+
+  A Monad abstract the notion of \*sequentialization\s. Within a monad, you can
+evaluate a computation after another in order. Each one receiving the result of the
+previous.
+
+
+
+<< http://eed3si9n.com/learning-scalaz/Monad.html
+<< http://eed3si9n.com/herding-cats/Monad.html
+<< http://www.stephendiehl.com/posts/monads.html
+---
+<< /Category Theory/Monad
+
+Do you remember the Sequentializer typeclass from the previous example code
+in HKTs section?
+
+```
+trait Sequentializer[F[_]] {
+  def me[A](a: A): F[A]
+
+  def thisAndThen[A, B](me: F[A])(andThen: A => F[B]): F[B]
+}
+```
+
+So that is Monad, hided behind a less technical name.
+
+
+
+
+---
+<< /Category Theory/Kleisli
+
+Usually when we are working with functions + monads,
+we arrive commonly to use multiple:
+
+    a => M[b]
+
+That's a kleisli arrow.
+An kleisli enables its composition.
+
+```
+final case class Kleisli[F[_], A, B](run: A => F[B]) {
+
+  def compose[Z](k: Kleisli[F, Z, A])(implicit F: Monad[F]): Kleisli[F, Z, B] =
+    Kleisli[F, Z, B](z => F.flatMap(k.run(z))(run))
+
+  def map[C](f: B => C)(implicit F: scalaz.Functor[F]): Kleisli[F, A, C] =
+    Kleisli[F, A, C](a => F.map(run(a))(f))
+}
+```
+
+\*We can define a Monad instance for kleisli.
+
+
+
+<< https://typelevel.org/cats/datatypes/kleisli.html
+<< https://wiki.haskell.org/Arrow_tutorial
+---
+<< /Category Theory/Free-Monads
+
+\*A real case application for Configuration validation during app building:
+```
+object kleislyCase {
+  import scalaz._, Scalaz._
+  final case class DbConfig(url: String, user: String, pass: String)
+  final case class ServiceConfig(addr: String, port: Int)
+  final case class AppConfig(dbConfig: DbConfig, serviceConfig: ServiceConfig)
+
+  final case class Db(name: String)
+  final case class Service(name: String)
+  final case class App(db: Db, service: Service)
+
+  // def dimap[C, D](f: C => Int,g: Int => D)(implicit b: scalaz.Functor[Some]): scalaz.Kleisli[Some,C,D]
+  val db = scalaz.Kleisli[Option, DbConfig, Db]( _ => some(Db("some DB")) )
+    .dimap( (c: AppConfig) => c.dbConfig, a => a) // Profunctor[P[_, _]]
+  val srv = scalaz.Kleisli[Option, ServiceConfig, Service]( _ => some(Service("some Service")) )
+    .dimap( (c: AppConfig) => c.serviceConfig, a => a)
+
+  val apK = Applicative[scalaz.Kleisli[Option, AppConfig, ?]].apply2[Db, Service, App](db, srv)(App.apply _)
+
+  // apK.run: AppConfig => Option[App]
+  println( apK.run(AppConfig(DbConfig("http://...", "Dani", "PWD"), ServiceConfig("0.0.0.0", 666))) )
+}
+kleislyCase
+```
+--
+
+\*Why is it using the applicative functor instead of monad?
+
+The example is based on https://typelevel.org/cats/datatypes/kleisli.html
+Here is using the monad approach... why? or why not?
+---
+<< /Category Theory/Free-Monads
+
+\*Free monad:
+
+  We can view Free monads as a clever way of forming Monad out of Functor.
+A practical and very important application of them is Stackless computations.
+Instead of chainning function calls, it wraps each step into a new value, so
+it trades stack for heap memory.
+
+The following libraries reduce boilerplate and propose free monads as a
+framework to develop apps:
+
+- https://github.com/frees-io
+- https://github.com/ProjectSeptemberInc/freek
+
+A real succesfull library made totally over free:
+
+- https://github.com/tpolecat/doobie <- a library for database access
+
+  
+
+<< http://skillsmatter.com/podcast/scala/stackless-scala-free-monads
+<< http://eed3si9n.com/herding-cats/Free-monads.html
+---
+<< /Category Theory/Monoid
+
+\*Monoid:
+  Is a data structure that have an associative binary operation (a Semigroup)
+and a value that acts as identity with respect that operation.
+--
+
+```
+trait Semigroup[A] {
+  def append(a1: A, a2: => A): A
+}
+trait Monoid[A] extends Semigroup[A] {
+  def zero: A
+}
+```
+--
+
+A monoid abstracts the notion of \*accumulation\s.
+
+\_Laws:
+  - \*Associativity\s:   append(a1, append(a2, a3)) == append(append(a1, a2), a3)
+  - \*Identity\s:  append(a, zero) == a
+---
+<< /Category Theory/Monoid
+
+```
+{
+  import scalaz._, Scalaz._
+
+  def test[A: scalaz.Monoid](v1: A, v2: A) = 
+    Monoid[A].append(Monoid[A].append(Monoid[A].zero, v1), v2)
+
+  println( test(10, 10)(Monoid[Int]) )     // Default Int monoid: (+) & 0
+
+  val intM = Monoid[Int @@ Tags.Multiplication]
+  println( test(10, 10)(intM) )
+}
+```
+---

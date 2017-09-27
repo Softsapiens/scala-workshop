@@ -1,0 +1,136 @@
+<< /Design
+
+A \*Problem domain\s has:
+  + Entities
+  + Behaviors
+  + Laws
+
+moving to a \*Solution domain\s has different approaches.
+
+  -> Object Oriented design will focus on Entities and
+     mapping State and related Behaviors together in Classes.
+     Class models domain abstraction.
+       - What should go in each class...
+       - Avoiding uncontrolled mutation, making 'private'
+       - Design to interfaces
+
+  -> Functional Programming will focus on Behaviors
+     mapping them to pure functions (with required Types and Constraints) that
+     trasnform immutable states.
+     [Note: Is this an Algebra(ops + sets + laws), isn't it?]
+     ADTs models domain abstraction
+     Entities will be represented by Types.
+     Laws will be translated to 'properties' behavior functions
+       - minimize side effects
+       - minimize coupling
+       - focus on composability -> compose algebras to get bigger ones.
+       - immutable data -> no uncontrolled mutation
+
+<< https://www.youtube.com/watch?v=U0Rk9Knq8Vk
+<< https://www.manning.com/books/functional-and-reactive-domain-modeling
+---
+<< /Design
+
+My \*personal vision\s in design is:
+
+- Use as many \*deterministic total functions\s as possible.
+- Try to keep \*'controlled' side-effects\s trying to be as much pure as possible.
+- Always use the \*weaker powerful abstraction\s: for ex to sum Amounts, use Monoid operations
+  instead of concrete type operation.
+- \*Parametricity\s: try to make functions parametric with respect to
+    types rather than using concrete types.
+- \*Ad-hoc polymorphism through type classes\s. Inheritance constraints more.
+
+ So the code will get:
+
+    => more reasonable
+    => easy to test
+    => more composable
+    => more paralellizable
+---
+<< /Design/'Function-al' advices
+
+\*Do not use partial functions
+
+```
+def isAdult(age: Int): Boolean = {
+  require(age >= 0, "age must be positive")
+  age >= 18
+}
+```
+
+Runtime exceptions are NEVER a good option.
+--
+
+\*-> Increase the output type:
+
+```
+def isAdult(age: Int): Either[String, Boolean] =
+  if(age < 0) Left(s"$age must be positive") else Right(age >= 18)
+```
+--
+
+\*-> Decrease the input type:
+
+```
+{
+  import eu.timepit.refined.api.Refined
+  import eu.timepit.refined.auto._
+  import eu.timepit.refined.numeric.Positive
+
+  def isAdult(age: Int Refined Positive): Boolean = age.value >= 18
+}
+```
+
+<<     \*...by the way, move up Configurations/Constants/Decisions
+
+
+<< https://julien-truffaut.github.io/fp-api
+---
+<< /Design/'Function-al' advices
+
+\* Yes, Pull out logic... into a lambda for example.
+
+```
+def doIt(cas: Int)(input: String) = cas match {
+  case 1 => input.toUpperCase
+  case _ => input.toLowerCase
+}
+```
+--
+
+\*Better to...
+
+```
+def doItBetter(action: String => String)(input: String) =
+  action(input)
+
+doItBetter (_.toUpperCase) ("hola")
+```
+
+\*When a functions receives a bolean as input... think abou it.
+
+
+<< http://degoes.net/articles/destroy-all-ifs
+---
+<< /Design/'Function-al' advices
+
+\* Make function requirements explicit
+
+```
+def perhapsDone(s1: Option[String], s2: Option[String]) = for {
+  v1 <- s1
+  v2 <- s2
+} yield s"$v1 and $v2"
+```
+--
+
+\* in front of
+
+```
+def mustDo(s1: String, s2: String) = s"$s1 and $s2"
+```
+
+Again moving up logic...
+
+---

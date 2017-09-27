@@ -1,0 +1,34 @@
+
+\*sealed trait Scala extends Language with TypeSafety with Abstraction
+
+--
+final case object DanielPous extends Coder
+   with Twitter("@DanielPous")  
+   with Github("softsapiens")
+   with CommunityMaster("Functional Languages")
+
+ /home/dani/work/Telefonica/ElevenPaths/CTO-Office/Cyber-Platform
+--
+
+\_Index
+
+    - The Type System and its parts
+    - Typed Functional Programming
+    - CT Abstractions
+    - Dependency Injection
+    - Immutable Data Structures Management with Optics
+    (- Generic/Type-level Programming)*
+    (- Property-based Testing)*
+    (- Async Programming)*
+    - Function-al Design
+    - Final
+
+<< (*) Pending :-(
+--
+
+\_Goals
+    - Having fun coding Scala
+    - How to use Types to get better code: \*- bugs & + maintainable
+    - How to use Functional Programming to get code: \*+ reasonable & + composable & - bugs
+    - Improving our Abstraction skills
+---

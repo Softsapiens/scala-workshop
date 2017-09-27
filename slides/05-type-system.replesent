@@ -1,0 +1,874 @@
+<< /Type System
+
+\*Odersky\s:
+  Scala is a statically typed language. Its type system is arguably the most sophisticated
+  in any programming language, in part because it combines comprehensive ideas from
+  functional programming and object-oriented programming.
+  The type system tries to be logically comprehensive, complete, and consistent.
+--
+
+\*but what's a Type System?
+
+<definition>
+
+--
+
+\*and what's a Type?
+
+A type is a compile-time description of a set of values.
+Int is the set of all integers between -2147483648 and 2147483647.
+
+
+<< https://gist.github.com/jdegoes/97459c0045f373f4eaf126998d8f65dc
+---
+<< /Type System
+Scala unifies all the types with a common ancestor (Any). All values are objects.
+
+\*Value Types (AnyVal as ancestor)\s: 
+  - Not nullable values
+  - Represents the 'value world' of Java (JVM primitives): int, boolean, float,...
+
+\*Object Types (AnyRef as ancestor)\s:
+  - Nullable
+  - Corresponds to java's Object and its childs
+<<                         Any
+<<                          ^
+<<                          |
+<<             --------------------------
+<<            |                          |
+<<          AnyVal                     AnyRef (java Object)
+<<            ^                          ^
+<<            |                          |
+<<    Unit/Int/Char/Boolean          traits
+<<    custom value classes           classes/case classes
+<<                                   objects
+<<                         ···
+<<
+<<           ^                        Null
+<<           |                          ^
+<<           |--------------------------|
+<<                          |
+<<                        Nothing
+---
+<< /Type System
+
+
+\*How to define your Types\s:
+
+  - Declaring as a named types:
+
+    + Define class (sealed, abstract, final), trait or object
+    + Define a type member (using `type` keyword)
+
+  - Combining existing types as a not-named types:
+
+    + val x: Cloneable with Serializable
+
+
+
+
+
+
+---
+<< /Type System/Parametrized Types
+\*Parametrized Types:
+   Same as generic types in Java.
+   A generic type is a generic class or interface that is parameterized over types.
+
+```
+sealed trait StackDsl[T] {
+  type Stack
+
+  def push(x: T, s: Stack): Stack
+  def top(s: Stack): T
+  def pop(s: Stack): Stack
+}
+```
+--
+
+\*Tip:
+  It could be seen as a type-level function that receives a type and generates a new one, for ex:
+
+```
+def stackDsl(t: T): StackDsl[T]
+```
+
+Using Scala REPL:
+                scala> :kind -v Int       scala> :kind -v List                                  
+                Int's kind is A           List's kind is F[+A]                                
+                *                         * -(+)-> *                                          
+                This is a proper type.    This is a type constructor: a 1st-order-kinded type.
+
+                scala> \*:kind -v StackDsl
+                Show's kind is F[A]
+                * -> *
+                This is a type constructor: a 1st-order-kinded type.
+---
+<< /Type System/Parametrized Types
+
+
+
+Parametrized types interact with type-checker by using:
+  - bounds
+  - variance
+
+```
+sealed trait StackDsl[T <: AnyVal] {
+  type Stack
+
+  def push(x: T, s: Stack): Stack
+  def top(s: Stack): T
+  def pop(s: Stack): Stack
+}
+```
+---
+<< /Type System/Parametrized Types/Variance
+
+< \*Variance\s: It is about how inheritance affects parametrized types. There are 3 cases:
+--
+
+\*Covariant       trait F[+A]   def produce[E]: \*E\s  <-- type parameter as output
+
+  A       F[A]              Event           Producer[Event]
+  ^         ^                 ^                 ^
+  |   =>    |                 |       =>        |
+  B       F[B]            ClientEvent       Producer[ClientEvent]
+
+--
+\*Contravariant   trait F[-A]   def consume[E](e: \*E\s): Unit  <-- type parameter as input
+
+  A       F[A]              Event           Consumer[Event]
+  ^         |                 ^                 ^
+  |   =>    v                 |       =>        |
+  B       F[B]            ClientEvent       Consumer[ClientEvent]
+
+--
+\*Invariant       trait F[A]    def transform[E](e: \*E\s): \*E\s    <-- type parameter as input & output
+
+  A       F[A]              Event           Pipe[Event]
+  ^                           ^                                             
+  |   =>                      |       => 
+  B       F[B]            ClientEvent       Pipe[ClientEvent]
+
+---
+<< /Type System/Parametrized Types/Variance
+
+
+
+\_Real cases:
+
+
+    - Collections library:
+      * Seq[+A], Iterable[+A]
+
+    - Function1[-A, +B], PartialFunction[-A, +B]
+
+    - PartiallyOrdered[+A]
+
+
+
+---
+<< /Type System/Parametrized Types/bounds
+
+\*Bounds\s: Used to constraint types (type params or type members):
+         - Lower bounds: subtype bounds
+         - Upper bounds: supertype restrictions
+```
+
+trait Event
+trait EventProducer[E <: Event] {
+  def produce: E
+}
+trait EventConsumer[E <: Event] {
+  def consume(e: E)
+}
+```
+--
+
+Remember that all types have bounds:
+
+  - \*Any\s is upper bound of all the types
+```
+        import scala.collection.mutable.ArrayBuffer
+
+        val allThings = ArrayBuffer[Any]()
+        val anInt = 42          // Int remains `int` during runtime
+        allThings += anInt      // now Int is boxed as java.lang.Integer inside
+```
+--
+
+  - \*Nothing\s is lower bound of all the types:
+  
+```
+        def poom(): Int = { throw new Exception("Poom") }
+```
+---
+<< /Type System/Implicits/Typeclasses
+
+But... There is another bound:  \*Context Bounds\s -> Welcome \*Implicits\s!!
+
+Context bounds is typically used with the so-called type class pattern(ad-hoc polymorphism),
+a pattern of code that emulates the functionality provided by Haskell type classes.
+This pattern implements an \_alternative to inheritance\s by making
+functionality available through a sort of implicit adapter pattern.
+(https://docs.scala-lang.org/tutorials/FAQ/context-bounds.html)
+
+```
+      // Interface or typeclass definition
+      trait Show[T] {
+        def show(x: T): String
+      }
+      // typeclass implementation
+      implicit val dblShow = new Show[Double] {
+        def show(x: Double) = s"${x}dbl"
+      }
+      // Optimized to reduce GC pressure
+      implicit final object intShow extends Show[Int] {
+        def show(x: Int) = s"${x}int"
+      }
+      // Using it
+      def print[A: Show](x: A) = {
+        val inst = implicitly[Show[A]]
+        println(inst.show(x))
+      }
+```
+---
+<< /Type System/implicits/Typeclasses
+<< \*               - Use de-facto standards for typeclass creation:
+```
+trait Show[T] {   def show(x: T): String }
+object Show {
+  def apply[A: Show]: Show[A] = implicitly[Show[A]]
+
+  trait Ops[A] {
+    def typeClassInstance: Show[A]
+    def self: A
+    def show: String = typeClassInstance.show(self)
+  }
+  trait ToShowOps {
+    implicit def toShowOps[A](target: A)(implicit tc: Show[A]): Ops[A] = new Ops[A] {
+      val self = target; val typeClassInstance = tc
+    }
+  }
+  object nonInheritedOps extends ToShowOps
+
+  trait AllOps[A] extends Ops[A] {
+    def typeClassInstance: Show[A]
+  }
+  object ops {
+    implicit def toAllShowOps[A](target: A)(implicit tc: Show[A]): AllOps[A] = new AllOps[A] {
+      val self = target; val typeClassInstance = tc
+    }
+  }
+}
+implicit object intShow extends Show[Int] {
+  def show(x: Int) = s"${x}int"
+}
+import Show.ops.toAllShowOps
+```
+---
+<< /Type System/Implicits/Typeclasses
+
+
+\*Wait!!!\s reduce boilerplate with, for example,
+Simulacrum (https://github.com/mpilquist/simulacrum)
+
+```
+    import simulacrum._
+
+    @typeclass trait Show[A] {
+      def show(x: A): String
+    }
+
+    implicit object floatShow extends Show[Float] {
+      def show(x: Float) = s"${x}flt"
+    }
+
+    import Show.ops.toAllShowOps
+
+    def print[A: Show](a: A) = a.show
+```
+---
+<< /Type System/Implicits/Patterns
+
+
+- 'Pimp my lib':
+
+  It is tha pattern name that corresponds exactly to what we did with the '.show' enrichment.
+  It's just the extension of a type functionality using an implicit class.
+
+---
+<< /Type System/Implicits
+
+
+It's possible to \*chain implicits(composition)\s, for example:
+
+```
+{
+  class A(val n: Int)
+  class B(a: A) {
+    def double = a.n * 2
+  }
+
+  import scala.language.implicitConversions
+
+  implicit def toA(n: Int): A = new A(n)
+  implicit def aToB[A1](a: A1)(implicit f: A1 => A): B =
+    new B(a)
+
+  println(5.double)
+}
+```
+---
+<< /Type System/Implicits resolution
+
+Exists a non-trivial logic for implicits resolution:
+
+ - https://www.scala-lang.org/files/archive/spec/2.12/07-implicits.html 
+ - http://eed3si9n.com/implicit-parameter-precedence-again
+ - http://eed3si9n.com/revisiting-implicits-without-import-tax
+
+Basically, There is an order for searching which implicit to use.
+
+
+
+
+
+---
+<< /Type System
+
+\*Existential Type:
+
+  Is a type with some unknown parts in it.
+  An standard tool for modeling data-hiding constructs:
+  \*(Abstraction + Encapsulation)
+
+```
+  type foo = Array[T] forSome { type T }
+
+  type bar = List[_]
+```
+---
+<< /Type System/Existential Types
+
+                     \*Abstraction in Scala
+
+<                     \_value-level\s                      \_type-level\s
+<  
+< \_parameter*\s
+<                      (x: Int)                           [A]
+<                      (f: Int => Int)  <- High Order ->  [F[_]]
+< \_abstract member*\s
+<                      def/val x: Int                     type A
+<                      def f(y: Int): Int                 type F[_]
+
+<< - Parameter: comes from a functional programming paradigm
+
+<< - Abstract members: comes from object oriented approach
+
+<< \*(*) are equivalent solutions
+
+
+<< https://julienrf.github.io/2017/existential-types
+---
+<< /Type System/Existential Types
+
+\* For Encapsulation:
+
+```
+    trait FileSystem {
+      type File
+      def open(path: String): File
+      def read(file: File): String
+      def close(file: File): Int
+    }
+```
+--
+```
+    def showSomething(files: FileSystem): Unit = {
+      println(files.read("/bar.txt"))
+    }
+```
+--
+```
+    def showSomething(files: FileSystem): Unit = {
+      val file = files.open("/foo")
+      println(files.read(file)) // I have no other choice than
+                      // calling the `open` method to
+                      // get a `File` instance
+    }
+```
+
+Use this technique when you want to hide the implementation of the abstraction type.
+
+<< https://julienrf.github.io/2017/existential-types
+---
+<< /Type System/Existential Types
+
+\*Another case:
+```
+  val x = Array(1, 2, 3)
+
+  def foo(x: Array[Any]) = { println(x.length); x }
+  foo(x)
+```
+--
+
+\*Not compile!\s. Remember:
+    :k -v Array
+    Array's kind is \*F[A]\s
+    * -> *
+    This is a type constructor: a 1st-order-kinded type.
+
+```
+  val x = Array(1, 2, 3)
+  // Now we need to carry around T, and in this case it's really not necessary
+  def foo2[T](x: Array[T]) = { println(x.length); x }
+  foo2(x)
+```
+--
+
+```
+  def foo3(x: Array[T] forSome {type T}) = { println(x.length); x }
+  foo3(x)
+```
+--
+
+```
+  def foo4(x: Array[_]) = { println(x.length); x }
+  foo4(x)
+```
+
+<< http://chariotsolutions.com/wp-content/uploads/2016/04/HeatherMiller.pdf
+---
+<< /Type System/Existential Types
+
+
+More cases:
+
+```
+  final case class Foo[A](a: A)
+
+  // Each pair must have the same A in both slots, but the pairs can differ
+  // one to the next.
+  def g(as: (Foo[A], A) forSome { type A }*) = 1
+
+  // Thus
+  g((Foo(1), 2), (Foo("bar"), "baz"))
+```
+
+
+
+<< https://github.com/tpolecat/examples/blob/master/src/main/scala/eg/ExistentialQuantification.scala
+---
+<< /Type System/Existential Types
+
+\sRemember:
+
+    Each function \*T => U\s from any T
+    could be translated to  \*(Exist X. X) => U\s
+--
+
+Hiding T we get:
+
+  - abstraction from a concrete T
+
+  - modularity (cause 'information hiding' is the essence of modulrity)
+  - encapsulation
+
+
+---
+<< /Type System/HKTs
+
+\*HKTs:
+        A language has higher kinds types when you can pass around
+    parametrized types(type constructors), so they are first class elements.
+
+--
+
+\*Why we need them? imagine...
+
+---
+<< /Type System/HKTs
+```
+type Id = Int
+
+final case class User(id: Id, name: String, val friends: List[Id])
+
+trait UserDbDsl {
+  def getUser(id: Id): Option[User]
+}
+case class UserDb(store: Map[Id, User]) extends UserDbDsl {
+  def getUser(id: Id) = 
+    store.get(id)
+}
+val _db = UserDb(Map(
+  1 -> User(1, "foo", List(2, 3))
+  , 2 -> User(2, "foo", List(1))
+  , 3 -> User(3, "foo", List(1))
+  ))
+
+def getFriends(db: UserDbDsl)(user_id: Id): List[User] =
+  db.getUser(user_id) map {_.friends} map {_ map {db.getUser _}} getOrElse List() map {_.get}
+
+getFriends(_db)(1) foreach println 
+```
+---
+<< /Type System/HKTs
+
+\*And now what happens if our database driver becomes asynchron...
+---
+<< /Type System/HKTs
+```
+import scala.concurrent.Future, scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
+
+type Id = Int
+final case class User(id: Id, name: String, val friends: List[Id])
+// Now our interface must be asynchron in order to avoid thread locking
+trait UserDbDsl {
+  def getUser(id: Id): Future[Option[User]]
+}
+case class UserDb(store: Map[Id, User]) extends UserDbDsl {
+  def getUser(id: Id) = Future { store.get(id) }
+}
+val _db = UserDb(Map(
+  1 -> User(1, "foo", List(2, 3))
+  , 2 -> User(2, "foo", List(1))
+  , 3 -> User(3, "foo", List(1))
+  ))
+// Now the program will be...
+def getFriends(db: UserDbDsl)(user_id: Id): Future[List[User]] =
+  db.getUser(user_id) flatMap (u =>
+    Future.sequence(
+      u map {_.friends} map {_ map {db.getUser _}} getOrElse List()
+    ) map {_ map {_.get}}
+  )
+val _friends = getFriends(_db)(1)
+Thread.sleep(500)    //Await.result(_friends, 5 seconds)
+
+_friends onComplete println _
+```
+---
+<< /Type System/HKTs
+
+\*Could we make it better?
+\*Could it be implemented in order to avoid coupling?
+
+
+---
+<< /Type System/HKTs
+```
+import scala.concurrent._, duration._, ExecutionContext.Implicits.global
+type Id = Int
+final case class User(id: Id, name: String, val friends: List[Id])
+trait UserDbDsl[F[_]] {  def getUser(id: Id): F[Option[User]]  }
+case class UserDb(store: Map[Id, User]) extends UserDbDsl[Future] {
+  def getUser(id: Id) = Future { store.get(id) }
+}
+val _db = UserDb(Map(1 -> User(1, "foo", List(2, 3)),
+  2 -> User(2, "foo", List(1)), 3 -> User(3, "foo", List(1))))
+trait Sequentializer[F[_]] {
+  def me[A](a: A): F[A]
+  def thisAndThen[A, B](me: F[A])(andThen: A => F[B]): F[B]
+}
+def getFriends[F[_]: Sequentializer](db: UserDbDsl[F])(user_id: Id) = {
+  val seqs = implicitly[Sequentializer[F]]; import seqs._
+  thisAndThen(db.getUser(user_id)) { u =>
+    me(u map {_.friends} map {_ map {db.getUser _}} get )
+  }
+}
+implicit object futureIsSequentializer extends Sequentializer[Future] {
+  def me[A](a: A) = Future { a }
+  def thisAndThen[A, B](me: Future[A])(continuation: A => Future[B]): Future[B] =
+    me flatMap continuation
+}
+getFriends[Future](_db)(1) onComplete println _
+Thread.sleep(500)
+```
+--
+
+\*What happens if we ask about user id 4?
+---
+<< /Type System/HKTs
+
+But... what about now when F[_] was a synchron context...
+And will the program getFriends be still valid?
+--
+
+We have to defined that \*synchron context + its sequentializer instance\s...
+let's coding...
+--
+
+```
+type Sync[A] = A
+
+case class UserDbSync(store: Map[Id, User]) extends UserDbDsl[Sync] {
+  def getUser(id: Id) = store.get(id)
+}
+
+val _dbs = UserDbSync(Map(
+  1 -> User(1, "foo", List(2, 3))
+  , 2 -> User(2, "foo", List(1))
+  , 3 -> User(3, "foo", List(1))))
+  
+implicit object syncIsSequentializer extends Sequentializer[Sync] {
+  def me[A](a: A) = a
+
+  def thisAndThen[A, B](me: Sync[A])(continuation: A => Sync[B]) =
+    continuation(me)
+}
+
+println( getFriends[Sync](_dbs)(1) )
+```
+---
+<< /Type System/Generalized Type Constraints
+
+\*Generalized Type Constraint:
+
+  They allow you, from within a type-parameterized type to
+further constrain one of its type parameters.
+There are three:
+
+      - \*A =:= B\s means A must be exactly B
+      - \*A <:< B\s means A must be a subtype of B
+                    (analogous to the simple type constraint <:)
+
+--
+```
+case class Foo[A](a:A) { // 'A' can be substituted with any type (no constraints)
+
+    // but getStringLength can only be used if this is a Foo[String]
+    def getStringLength(implicit evidence: A =:= String) = a.length
+}
+
+Foo("hola").getStringLength
+
+// Foo(1).getStringLength    // Failure
+```
+
+
+
+<< https://stackoverflow.com/questions/3427345/what-do-and-mean-in-scala-2-8-and-where-are-they-documented
+<< 
+---
+<< /Type System/Path-Dependent Types
+
+\*Path-Dependent types:
+
+    Are those types defined inside another type definition.
+  They will have their own type-universe in each parent-type instance:
+
+```
+  class Outer {
+    class Inner
+  }
+  val out1 = new Outer
+  val out1in = new out1.Inner
+  val out2 = new Outer
+  val out2in = new out2.Inner
+
+  // the path dependent type. The "path" is "inside out1".
+  type PathDep1 = out1.Inner
+  type PathDep2 = out2.Inner
+
+  val typeChecksOk: PathDep1 = out1in
+  // val typeCheckFails: PathDep1 = out2in
+  val typeChecksOk2: Outer#Inner = out1in  // \*<--- a Type Projection\s
+  val typeChecksOk3: PathDep1 = out1in
+  
+  // implicitly[PathDep1 =:= PathDep2]    // Failure
+  // implicitly[PathDep1 =:= Outer#Inner] // Failure
+  implicitly[PathDep1 <:< Outer#Inner]    
+  implicitly[PathDep2 <:< Outer#Inner]
+```
+---
+<< /Type System/Path-Dependent Types
+
+\*Compare this two approximations:
+
+```
+trait MyStack1[E] {
+  def push(e: E): Unit
+  def pop(): E
+}
+
+def popAndPush1(stack: MyStack1[_]): Unit = {
+  val elem1 = stack.pop()
+  stack.push(elem1)
+}
+
+trait MyStack2 {
+  type Elem
+  def push(e: Elem): Unit
+  def pop(): Elem
+}
+
+def popAndPush2(stack: MyStack2): Unit = {
+  val elem2 = stack.pop()
+  stack.push(elem2)
+}
+```
+---
+
+\*The direct solution to this seems:
+
+```
+trait MyStack1[E] {
+  def push(e: E): Unit
+  def pop(): E
+}
+
+def popAndPush1_[E](stack: MyStack1[E]): Unit = {
+    val elem = stack.pop()
+    stack.push(elem)
+  }
+```
+
+It's not a clean solution, cause you have to carry the type around.
+
+---
+<< /Type System/Phantom Types
+\*Phantom Types:
+  The reason why they are called phantom is that they are used as type constraints
+but never instantiated. Used in type-level programming.
+--
+
+```
+trait ConnectionStatus
+object ConnectionStatus {
+  trait Open extends ConnectionStatus
+  trait Closed extends ConnectionStatus
+}
+import ConnectionStatus._
+sealed trait Connection[S]
+object Connection {
+  def apply[S <: ConnectionStatus] = new Connection[S] {}
+  def open[S](d: Connection[S])(implicit ev: S =:= Closed) = Connection[Open]
+  def close[S](d: Connection[S])(implicit ev: S =:= Open) = Connection[Closed]
+}
+val closed = Connection[Closed]
+val opened = Connection.open(closed)
+val closedAgain = Connection.close(opened)
+
+// Connection.close(closed)
+// Connection.open(openDoor)
+```
+---
+<< /Type System/Phantom Types
+
+\* Another use case is the Proxy type:
+
+```
+import scalaz.syntax.std.string.ToStringOpsFromString
+
+sealed trait Proxy[A]
+object Proxy { def apply[A]: Proxy[A] = new Proxy[A] {} }
+
+trait Show[T] { def show(x: T): String }
+object Show { def apply[A: Show]: Show[A] = implicitly[Show[A]] }
+
+implicit val dblShow = new Show[Double] { def show(x: Double) = s"${x}dbl" }
+implicit val intShow = new Show[Int] { def show(x: Int) = s"${x}int" }
+
+trait Parser[T] { def parse(s: String): T }
+object Parser { def apply[A: Parser]: Parser[A] = implicitly[Parser[A]] } 
+
+implicit val dblParser = new Parser[Double] {
+  def parse(x: String): Double = x.parseDouble.fold(Function.const(0.0)(_), identity)
+}
+implicit val intParser = new Parser[Int] {
+  def parse(x: String): Int = x.parseInt.fold(Function.const(0)(_), identity)
+}
+
+def dummy[A: Parser: Show](p: Proxy[A]): (String => String) = s => Show[A].show(Parser[A].parse(s))
+def dummy_[A: Parser: Show]: (String => String) = s => Show[A].show(Parser[A].parse(s))
+```
+
+<<            Compare 'dummy' with 'dummy_', what difference do you see?
+---
+<< /Type System/Call-by
+
+Scala has three ways on \*passing parameters around\s:
+
+
+      \*- call-by value
+
+      \*- call-by name
+
+      \*- call-by need
+
+
+
+
+---
+<< /Type System/Call-by-value
+
+
+\*call-by-value:
+
+Evaluates before calling the function. The usual case in strict languages.
+
+```
+def fooValue(bar: String) = {
+  Thread.sleep(300)
+  println(s"begin fooValue at ${System.currentTimeMillis}")
+  bar + { Thread.sleep(300); bar }
+}
+
+println(fooValue{ s" ts ${System.currentTimeMillis} " })
+```
+
+
+
+---
+<< /Type System/Call-by-name
+
+\*Call-by-name:
+
+Evaluates bar each time it is used
+
+```
+def fooName(bar: => String) = {
+  Thread.sleep(300)
+  println(s"begin fooName at ${System.currentTimeMillis}")
+  bar + { Thread.sleep(300); bar }
+}
+
+println(fooName{ s" ts ${System.currentTimeMillis} " })
+```
+
+---
+<< /Type System/Call-by-need
+
+\*Call-by-need:
+  Evaluates only one time and when the information is required. The default case in lazy languages
+
+\_Implementation 1:
+
+```
+def fooNeed1(bar: => String) = {
+  Thread.sleep(300); println(s"begin fooNeed1 at ${System.currentTimeMillis}")
+
+  lazy val lazyBar = bar
+  lazyBar + { Thread.sleep(300); lazyBar }
+}
+
+println(fooNeed1{ s" ts ${System.currentTimeMillis} " })
+```
+--
+
+\_Implementation 2:
+
+```
+def fooNeed2(bar: => String) = {
+  Thread.sleep(300); println(s"begin fooNeed2 at ${System.currentTimeMillis}")
+
+  bar + { Thread.sleep(300); bar }
+}
+
+lazy val bar = s" ts ${System.currentTimeMillis} "
+
+println(fooNeed2(bar))
+```
+---

@@ -1,0 +1,43 @@
+<< /references
+
+- https://github.com/scalaz/scalaz
+- http://julien-truffaut.github.io/Monocle
+- http://eed3si9n.com/learning-scalaz
+- http://chariotsolutions.com/wp-content/uploads/2016/04/HeatherMiller.pdf 
+- https://github.com/tpolecat/examples/blob/master/src/main/scala/eg/ExistentialQuantification.scala 
+- https://bitbucket.org/snippets/puffnfresh/5jRe9/functional-optics-presentation 
+- https://gist.github.com/jdegoes/97459c0045f373f4eaf126998d8f65dc
+- https://julienrf.github.io/2017/existential-types 
+- http://tpolecat.github.io/presentations/algebraic_types.html 
+- https://plato.stanford.edu/entries/category-theory/
+- https://www.youtube.com/watch?v=6t6bsWVOIzs
+- https://ncatlab.org/nlab/show/category+theory
+- https://github.com/scalaz/scalaz/blob/series/7.3.x/core/src/main/scala/scalaz/Category.scala
+- http://jonasboner.com/real-world-scala-dependency-injection-di
+- https://www.youtube.com/watch?v=OJe0Dm3t5wQ
+- http://www.stephendiehl.com/posts/monads.html
+- https://typelevel.org/cats/datatypes/kleisli.html
+- https://wiki.haskell.org/Arrow_tutorial
+- https://github.com/debasishg/frdomain
+- https://www.scala-lang.org/files/archive/spec/2.12/07-implicits.html
+---
+<< /dev/null
+
+
+\*Thanks for coming!!!
+\*Share any question or code idea, please!
+
+
+
+
+
+
+
+ $ sudo shutdown -h -k now 
+
+
+
+
+
+
+

@@ -1,0 +1,369 @@
+<< /Dependency Injection
+
+\*What's DI?
+
+   \*DI is a technique whereby one component supplies the dependencies of another component.
+A dependency is an component that can be used (a service). An injection is the passing of
+a dependency to a dependent component (a client) that would use it.
+Passing the service to the client, rather than allowing a client to build or find
+the service, is the fundamental requirement of the pattern.
+\*DI is one form of Inversion of Control.
+
+\*Building app from components you can swap out parts for testing, too.
+
+
+
+
+
+
+
+
+
+<< https://en.wikipedia.org/wiki/Dependency_injection
+<< https://www.youtube.com/watch?v=OJe0Dm3t5wQ
+---
+<< /Dependency Injection
+
+
+
+\* - Run-time DI:
+
+     * Google Guice (@inject annotations), for example.
+
+
+\* - Compite-time DI:
+
+     * Constructor DI
+     * Trait DI
+     * Cake pattern: 'thin' or 'full'
+     * Functions: by parameter or using Reader monad.
+     * Typeclasses in our 'main context' (Object Algebras)
+     * Free Monads (Initial Algebras)
+
+
+
+
+---
+<< /Dependency Injection/Runtimers
+
+
+\*Runtime-DI is dangerous because it's runtime.
+Use carefully in dynamic loading systems (for example, Play Framework).
+
+
+Of course, we will try to \*do it all at compile time in Scala\s.
+We would user our type-checker friend as much as possible to avoid runtime surprises.
+
+
+
+
+---
+<< /Dependency Injection/Constructor
+
+DI by constructor:
+
+ Is the same implementation that in runtime-di, but injection is by-hand or macro (for
+ex, using MacWire) in compile-time instead of by annotation.
+
+Something like:
+```
+  type Msg = String
+  type Sink = Msg => Unit
+  type Logger = String => Unit
+
+  class SendService(sink: Sink, log: Logger) {
+    def send(m: Msg): Unit = {
+      log(s"""Sending ${m}""")
+      sink(m)
+    }
+  }
+  new SendService(println, println).send("Hola")
+
+  // Parametricity: abstraction over types
+  class SendService_[S, L](sink: S, log: L)(implicit ev2: S => Sink, ev3: L => Logger) {
+    def send(m: Msg): Unit = {
+      log(s"""Sending ${m}""")
+      sink(m)
+    }
+  }
+  val sinker: Sink = println
+  val logger: Logger = println
+
+  new SendService_(sinker, logger).send("Hola")
+```
+---
+<< /Dependency Injection
+
+Using this conversion:
+
+```
+class Foo[X, Y](x: X, y: Y) {
+  def foo[Z, F](z: Z): F = ???
+}
+
+```
+\*==>
+
+```
+def foo[X, Y, Z, F](x: X, y: Y)(z: Z): F = ???
+```
+---
+<< /Dependency Injection/Function
+
+DI by function:
+
+```
+type Msg = String
+type Sink = Msg => Unit
+type Logger = String => Unit
+
+def send(sink: Sink, log: Logger)(m: Msg): Unit = {
+  log(s"""Sending ${m}""")
+  sink(m)
+}
+
+// Parametricity <-abstract over function parameters
+// Use the valid abstraction with less constraints
+// DI by parameters
+def send_[M, S, L](sink: S, log: L)(m: M)
+          (implicit ev1: M => Msg, ev2: S => Sink, ev3: L => Logger): Unit = {
+  log(s"""Sending ${m}""")
+  sink(m)
+}
+
+send(println, println)("hola")
+
+val sinker: Sink = println
+val logger: Logger = println
+
+send_(sinker, logger)("hola")
+```
+---
+<< /Dependency Injection/Reader
+
+There are ways to reduce boilerplate:
+
+```
+type Reader[R, A] = R => A
+
+def runReader[D, A](r: Reader[D, A])(d: D) = r(d)
+
+final case class Dep(sink: Sink, log: Logger)
+
+def send(m: Msg): Reader[Dep, Unit] = dep => {
+  dep.log(s"""Sending ${m}""")
+  dep.sink(m)
+}
+val depends = Dep(println, println)
+
+runReader(send("hi Reader"))(depends)
+```
+
+\*Reader is a Monad!
+--
+
+Reader could be generalized into \*R => M[A]\*.
+--
+
+```
+type Reader[R, A] = Kleisli[Id, R, A]
+```
+
+This is a Kleisli arrow, do you remember our example in kleisli section?
+---
+<< /Dependency Injection/Type Classes
+
+```
+trait Sink[F[_], M] {
+  def apply(m: M): F[Unit]
+}
+trait Logger[F[_]] {
+  def apply(s: String): F[Unit]
+}
+type Msg = String
+
+def send[F[_]: Sink[?[_], M]: Logger, M](m: M): F[Unit] = {
+  val sink = implicitly[Sink[F, M]]
+  val log = implicitly[Logger[F]]
+
+  log(s"""Sending ${m}""")
+  sink(m)
+}
+type Id[A] = A
+
+implicit val logger = new Logger[Id] {
+  def apply(s: String) = println(s)
+}
+implicit val sinker = new Sink[Id, Msg] {
+  def apply(m: Msg) = println(m)
+}
+// implicitly
+send[Id, Msg]("hi ")
+// explicitly
+send[Id, Msg]("hola")(sinker, logger)
+```
+---
+<< /Dependency Injection
+
+Finally the alternatives using 'mixins':
+
+        - traits
+        - 'thin' cake pattern
+        - 'full' cake pattern
+
+\*Traits
+
+  Define each dependency as a trait and use 'mixins' as injection mechanism.
+  Here the main problems are \*naming collisions\s and \*initialization order errors\s.
+
+```
+trait Module1 { def action1: Unit }
+trait Module2 { def action2: Unit }
+
+trait Module1A extends Module1 { def action1 = () }
+trait Module2A extends Module2 { def action2 = () }
+
+object MyTraitsApp extends Module1A with Module2A
+```
+
+Initialization problems are \_due to the init order\s, and can cause runtime exceptions and
+dead-locks (lazy vals and objects are implemented using \_locks\s.
+
+
+<< http://jonasboner.com/real-world-scala-dependency-injection-di
+<< https://www.youtube.com/watch?v=OJe0Dm3t5wQ
+---
+<< /Dependency Injection/Init Order Problems
+
+```
+object FooCase1 {
+  case class Foo(bar: String)
+
+  object App {
+    val foo = Foo(bar)
+    val bar = "bar"
+  }
+
+  println(App.foo)
+  println(App.foo.bar) // RuntimeError
+}
+FooCase1
+```
+--
+```
+// Fix
+object FooCase2 {
+  case class Foo(bar: String)
+
+  object App {
+    lazy val foo = Foo(bar)
+    lazy val bar = "bar"
+  }
+
+  println(App.foo)
+  println(App.foo.bar)
+}
+FooCase2
+```
+---
+<< /Dependency Injection/Init Order Problems
+
+```
+object FooCase3 {
+  class Foo(bar: Bar)
+  class Bar(foo: Foo)
+  object App {
+    lazy val foo: Foo = new Foo(bar)
+    lazy val bar: Bar = new Bar(foo)
+  }
+  //App.foo // java.lang.StackOverflowError
+}
+FooCase3
+```
+--
+```
+// Fix
+object FooCase4 {
+  class Foo(bar: => Bar)
+  class Bar(foo: => Foo)
+  object App {
+    lazy val foo: Foo = new Foo(bar)
+    lazy val bar: Bar = new Bar(foo)
+  }
+  App.foo
+}
+FooCase4
+```
+--
+\*But...
+```
+object FooCase5 {
+  class Foo(bar: => Bar) {val x = bar }
+  class Bar(foo: => Foo) {val y = foo }
+  object App {
+    lazy val foo: Foo = new Foo(bar)
+    lazy val bar: Bar = new Bar(foo)
+  }
+  App.foo // java.lang.StackOverflowError
+}
+```
+---
+<< /Dependency Injection/cakes
+
+\*About cakes:
+
+  - \*thin\s cake pattern:
+  
+    Here each component should be a shippable module(trait) wrapping the real component.
+    Avoid name collisions but disambiguating them inse the shippable module.
+    The code finally comes to be more dispersed.
+
+  - \*full\s cake pattern:
+
+    Now each component not only wrap the component instance but it has the trait definition
+    inside too. And any other 'element' you want to inject.
+
+A common problem with inheritance is that two instances can't share 'internal' defined types.
+Thay are path-dependent types. In the cake pattern case, this is known as \*bakery of doom\s
+
+---
+```
+trait OnOffDeviceComponent {
+  val onOff: OnOffDevice
+  trait OnOffDevice {
+    def on: Unit
+    def off: Unit
+  }
+}
+trait SensorDeviceComponent {
+  val sensor: SensorDevice
+  trait SensorDevice { def isCoffeePresent: Boolean }
+}
+trait OnOffDeviceComponentImpl extends OnOffDeviceComponent {
+  class Heater extends OnOffDevice {
+    def on = println("heater.on")
+    def off = println("heater.off")
+  }
+}
+trait SensorDeviceComponentImpl extends SensorDeviceComponent {
+  class PotSensor extends SensorDevice {
+    def isCoffeePresent = true
+  }
+}
+trait WarmerComponentImpl { this: SensorDeviceComponent with OnOffDeviceComponent =>
+  class Warmer {
+    def trigger = 
+      if (sensor.isCoffeePresent) onOff.on
+      else onOff.off
+  }
+}
+object ComponentRegistry extends OnOffDeviceComponentImpl
+  with SensorDeviceComponentImpl with WarmerComponentImpl {
+  val onOff = new Heater
+  val sensor = new PotSensor
+  val warmer = new Warmer
+}
+val warmer = ComponentRegistry.warmer
+warmer.trigger
+```
+---
