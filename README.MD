@@ -23,3 +23,10 @@ first
 To run examples:
 
 $ sbt run
+
+## Exploring
+
+Explore and hack gratefully with Ammonite Repl:
+
+$ amm
+import $exec.play
