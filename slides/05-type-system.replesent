@@ -9,8 +9,16 @@
 
 \*but what's a Type System?
 
-<definition>
+A type system is a tractable syntactic method for proving the absence of
+certain program behaviors by classifying phrases according to
+the kinds of values they compute.
 
+  \*What Type Systems Are Good For
+    - Detecting Errors asap
+    - Abstraction: types allow to use more powerful abstractions
+    - Documentation: types are also useful when reading programs
+    - Language safety: impossible to shoot yoursef in the food
+    - Efficiency: the more info the compiler has -> better code will generate
 --
 
 \*and what's a Type?
@@ -18,7 +26,7 @@
 A type is a compile-time description of a set of values.
 Int is the set of all integers between -2147483648 and 2147483647.
 
-
+<< "Types and programming languages" Pierce - 2002 Edition
 << https://gist.github.com/jdegoes/97459c0045f373f4eaf126998d8f65dc
 ---
 << /Type System
@@ -43,7 +51,7 @@ Scala unifies all the types with a common ancestor (Any). All values are objects
 <<    custom value classes           classes/case classes
 <<                                   objects
 <<                         ···
-<<
+<<                                      |
 <<           ^                        Null
 <<           |                          ^
 <<           |--------------------------|
