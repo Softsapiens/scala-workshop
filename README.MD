@@ -9,9 +9,8 @@ This is a Scala language workshop, includes:
 
 For playing slides:
 
-$ sbt console
-
 ```
+$ sbt console
 :load "./slides/REPLesent.scala"
 // with resolution 1280 x 1024
 val replesent = REPLesent(105, 35, source="./slides", intp=$intp, slideCounter=true, slideTotal=true); import replesent._
@@ -22,11 +21,15 @@ first
 
 To run examples:
 
+```
 $ sbt run
+```
 
 ## Exploring
 
 Explore and hack gratefully with Ammonite Repl:
 
+```
 $ amm
 import $exec.play
+```
