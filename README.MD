@@ -1,9 +1,32 @@
 ## Description
 
-This is a Scala language workshop, includes:
+This is my 'mix' for an 'Advanced' Scala Workshop at the job site. Based on Scala documents, articles, some papers, stackoverflow answers, ... and some own 'visions' / tips.
+
+**Editions**:
+
+  - 28/09/2017 at DT
+
+**Includes**:
 
   - slides
   - coding playground
+
+## Index
+
+    - The Type System and its parts
+    - Typed Functional Programming
+    - CT Abstractions
+    - Dependency Injection
+    - Immutable Data Structures Management with Optics
+    - Function-al Design
+    - Final
+
+## Goals
+
+    - Having fun coding Scala
+    - How to use Types to get better code: \*- bugs & + maintainable
+    - How to use Functional Programming to get code: \*+ reasonable & + composable & - bugs
+    - Improving our Abstraction skills
 
 ## Running
 
