@@ -74,28 +74,3 @@ object fs2KafkaPlay extends App {
 
   t.unsafeAttemptRun
 }
-
-/*
-package object kafka {
-  //defining case classes and functions
-  case class TopicMessage(...)
-
-  def client[F[_]](...) = KafkaClient[F]
-
-  // Smart 'constructors'
-  def topic(name: String): String @@ TopicName = Tag[TopicName](name)
-
-  sealed trait KafkaClient[F[_]] {
-  }
-
-  object KafkaClient {
-    def apply[F[]]() = {
-      impl.mkClient[F]
-    }
-
-    protected[kafka] impl {
-      def mkClient[F[_]]() = new KafkaClient[F] {...}
-    }
-  }
-}
- */
