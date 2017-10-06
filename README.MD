@@ -41,7 +41,6 @@ h
 first
 ```
 
-
 To run examples:
 
 ```
@@ -56,3 +55,8 @@ Explore and hack gratefully with Ammonite Repl:
 $ amm
 import $exec.play
 ```
+
+## Credits
+
+- Replesent project: https://github.com/marconilanna/REPLesent
+- And all the authors and projects used in this project (listed in references)
